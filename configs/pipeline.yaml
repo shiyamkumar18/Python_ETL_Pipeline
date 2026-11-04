@@ -1,0 +1,17 @@
+# Environment variables prefixed with ETL_ override values in this file.
+source_type: api
+source_file_path: data/sample_raw_events.json
+source_api_base_url: http://mock-api:8000
+source_api_timeout_sec: 10.0
+source_api_max_retries: 4
+source_api_backoff_sec: 1.0
+source_batch_size: 500
+
+db_insert_batch_size: 500
+
+reject_event_age_days: 30
+reject_rate_threshold_pct: 5.0
+max_properties_keys: 10
+max_properties_bytes: 1024
+
+log_level: INFO
