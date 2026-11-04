@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: subly
+      POSTGRES_PASSWORD: subly
+      POSTGRES_DB: subly
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U subly -d subly"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  mock-api:
+    build: .
+    command: ["-m", "uvicorn", "scripts.mock_event_api:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    environment:
+      PYTHONPATH: /app/src:/app
+      MOCK_API_FLAKE_RATE: "0.02"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  etl:
+    build: .
+    command: ["-m", "etl.pipeline", "--once"]
+    environment:
+      ETL_DATABASE_URL: postgresql://subly:subly@postgres:5432/subly
+      ETL_SOURCE_TYPE: ${ETL_SOURCE_TYPE:-api}
+      ETL_SOURCE_FILE_PATH: ${ETL_SOURCE_FILE_PATH:-data/sample_raw_events.json}
+      ETL_SOURCE_API_BASE_URL: http://mock-api:8000
+      ETL_SOURCE_API_MAX_RETRIES: "4"
+      ETL_DATA_DIR: /data
+      ETL_QUARANTINE_DIR: /data/quarantine
+      ETL_METRICS_DIR: /data/metrics
+    volumes:
+      - etl-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  etl-data:
